@@ -164,7 +164,6 @@ document.getElementById('change-name-btn').addEventListener('click', () => {
 // ---------- boot ----------
 async function boot() {
   registerServiceWorker();
-  setupTimelineDrag();
 
   const name = getProfileName();
   if (!name) {
@@ -228,12 +227,13 @@ let filterMode = { type: 'all' }; // { type:'all' } | { type:'year', year } | { 
 function rebuildTimelineRail() {
   const rail = document.getElementById('timeline-rail');
   rail.innerHTML = '';
-  const allBtn = el(`<button class="tl-all">ALL</button>`);
+  const allBtn = el(`<button class="tl-all">All years</button>`);
   allBtn.addEventListener('click', () => setFilterMode({ type: 'all' }));
   rail.appendChild(allBtn);
   const years = [...new Set(allPosts.map(p => new Date(p.timestamp).getFullYear()))].sort((a, b) => b - a);
   years.forEach(y => {
-    const btn = el(`<button class="tl-year" data-year="${y}">'${String(y).slice(2)}</button>`);
+    const btn = el(`<button class="tl-year" data-year="${y}">${y}</button>`);
+    btn.addEventListener('click', () => setFilterMode({ type: 'year', year: y }));
     rail.appendChild(btn);
   });
   highlightActiveInRail();
@@ -247,48 +247,6 @@ function highlightActiveInRail() {
     const btn = document.querySelector('.timeline-rail .tl-all');
     if (btn) btn.classList.add('active');
   }
-}
-
-function setupTimelineDrag() {
-  const rail = document.getElementById('timeline-rail');
-  const bubble = document.createElement('div');
-  bubble.className = 'timeline-bubble';
-  document.body.appendChild(bubble);
-
-  function yearAtY(clientY) {
-    const buttons = Array.from(rail.querySelectorAll('.tl-year'));
-    if (!buttons.length) return null;
-    let closest = null, minDist = Infinity;
-    for (const b of buttons) {
-      const rect = b.getBoundingClientRect();
-      const dist = Math.abs(rect.top + rect.height / 2 - clientY);
-      if (dist < minDist) { minDist = dist; closest = b; }
-    }
-    return closest ? Number(closest.dataset.year) : null;
-  }
-  function handleMove(clientY) {
-    const year = yearAtY(clientY);
-    if (year == null) return;
-    bubble.textContent = year;
-    bubble.style.top = Math.max(10, clientY - 20) + 'px';
-    bubble.style.display = 'block';
-    if (!(filterMode.type === 'year' && filterMode.year === year)) {
-      setFilterMode({ type: 'year', year });
-    }
-  }
-  function hideBubble() { bubble.style.display = 'none'; }
-
-  rail.addEventListener('pointerdown', (e) => {
-    if (e.target.classList.contains('tl-all')) return;
-    rail.setPointerCapture(e.pointerId);
-    handleMove(e.clientY);
-  });
-  rail.addEventListener('pointermove', (e) => {
-    if (e.buttons === 0 && e.pointerType !== 'touch') return;
-    handleMove(e.clientY);
-  });
-  rail.addEventListener('pointerup', hideBubble);
-  rail.addEventListener('pointercancel', hideBubble);
 }
 
 function computeFilteredPosts() {
