@@ -104,6 +104,10 @@ function formatDate(ts) {
 function makeId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 }
+function isVideoFile(file) {
+  if (file && file.type) return file.type.startsWith('video/');
+  return /\.(mp4|mov|webm|mkv|avi|3gp|m4v)$/i.test((file && file.name) || '');
+}
 function blobToDataUrl(blob) {
   return new Promise((resolve, reject) => {
     const r = new FileReader();
@@ -160,6 +164,7 @@ document.getElementById('change-name-btn').addEventListener('click', () => {
 // ---------- boot ----------
 async function boot() {
   registerServiceWorker();
+  setupTimelineDrag();
 
   const name = getProfileName();
   if (!name) {
@@ -204,8 +209,8 @@ async function refreshFeed() {
     showStorageError();
   }
   allPosts.sort((a, b) => b.timestamp - a.timestamp);
-  rebuildYearFilter();
-  applyFilter();
+  rebuildTimelineRail();
+  setFilterMode(filterMode);
 }
 
 function showStorageError() {
@@ -217,24 +222,126 @@ function showStorageError() {
   );
 }
 
-// ---------- year filter ----------
-function rebuildYearFilter() {
-  const select = document.getElementById('year-filter');
-  const current = select.value;
-  select.innerHTML = '<option value="">All years</option>';
-  const years = [...new Set(allPosts.map(p => new Date(p.timestamp).getFullYear()))].sort((a, b) => b - a);
-  for (const y of years) select.appendChild(el(`<option value="${y}">${y}</option>`));
-  if (years.includes(Number(current))) select.value = current;
-}
-document.getElementById('year-filter').addEventListener('change', applyFilter);
+// ---------- filtering ----------
+let filterMode = { type: 'all' }; // { type:'all' } | { type:'year', year } | { type:'onThisDay' }
 
-function applyFilter() {
-  const year = document.getElementById('year-filter').value;
-  filteredPosts = year ? allPosts.filter(p => new Date(p.timestamp).getFullYear() === Number(year)) : allPosts;
+function rebuildTimelineRail() {
+  const rail = document.getElementById('timeline-rail');
+  rail.innerHTML = '';
+  const allBtn = el(`<button class="tl-all">ALL</button>`);
+  allBtn.addEventListener('click', () => setFilterMode({ type: 'all' }));
+  rail.appendChild(allBtn);
+  const years = [...new Set(allPosts.map(p => new Date(p.timestamp).getFullYear()))].sort((a, b) => b - a);
+  years.forEach(y => {
+    const btn = el(`<button class="tl-year" data-year="${y}">'${String(y).slice(2)}</button>`);
+    rail.appendChild(btn);
+  });
+  highlightActiveInRail();
+}
+function highlightActiveInRail() {
+  document.querySelectorAll('.timeline-rail .tl-year, .timeline-rail .tl-all').forEach(b => b.classList.remove('active'));
+  if (filterMode.type === 'year') {
+    const btn = document.querySelector(`.timeline-rail .tl-year[data-year="${filterMode.year}"]`);
+    if (btn) btn.classList.add('active');
+  } else if (filterMode.type === 'all') {
+    const btn = document.querySelector('.timeline-rail .tl-all');
+    if (btn) btn.classList.add('active');
+  }
+}
+
+function setupTimelineDrag() {
+  const rail = document.getElementById('timeline-rail');
+  const bubble = document.createElement('div');
+  bubble.className = 'timeline-bubble';
+  document.body.appendChild(bubble);
+
+  function yearAtY(clientY) {
+    const buttons = Array.from(rail.querySelectorAll('.tl-year'));
+    if (!buttons.length) return null;
+    let closest = null, minDist = Infinity;
+    for (const b of buttons) {
+      const rect = b.getBoundingClientRect();
+      const dist = Math.abs(rect.top + rect.height / 2 - clientY);
+      if (dist < minDist) { minDist = dist; closest = b; }
+    }
+    return closest ? Number(closest.dataset.year) : null;
+  }
+  function handleMove(clientY) {
+    const year = yearAtY(clientY);
+    if (year == null) return;
+    bubble.textContent = year;
+    bubble.style.top = Math.max(10, clientY - 20) + 'px';
+    bubble.style.display = 'block';
+    if (!(filterMode.type === 'year' && filterMode.year === year)) {
+      setFilterMode({ type: 'year', year });
+    }
+  }
+  function hideBubble() { bubble.style.display = 'none'; }
+
+  rail.addEventListener('pointerdown', (e) => {
+    if (e.target.classList.contains('tl-all')) return;
+    rail.setPointerCapture(e.pointerId);
+    handleMove(e.clientY);
+  });
+  rail.addEventListener('pointermove', (e) => {
+    if (e.buttons === 0 && e.pointerType !== 'touch') return;
+    handleMove(e.clientY);
+  });
+  rail.addEventListener('pointerup', hideBubble);
+  rail.addEventListener('pointercancel', hideBubble);
+}
+
+function computeFilteredPosts() {
+  if (filterMode.type === 'year') {
+    filteredPosts = allPosts.filter(p => new Date(p.timestamp).getFullYear() === filterMode.year);
+  } else if (filterMode.type === 'onThisDay') {
+    const now = new Date();
+    filteredPosts = allPosts.filter(p => {
+      const d = new Date(p.timestamp);
+      return d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
+    });
+  } else {
+    filteredPosts = allPosts;
+  }
+}
+
+function updateFeedHeading() {
+  const heading = document.getElementById('feed-heading');
+  const text = document.getElementById('feed-heading-text');
+  if (filterMode.type === 'year') {
+    text.textContent = String(filterMode.year);
+    heading.style.display = 'flex';
+  } else if (filterMode.type === 'onThisDay') {
+    const dateStr = new Date().toLocaleDateString(undefined, { month: 'long', day: 'numeric' });
+    text.textContent = `From the vault: ${dateStr}, across the years`;
+    heading.style.display = 'flex';
+  } else {
+    heading.style.display = 'none';
+  }
+}
+
+function setFilterMode(mode) {
+  filterMode = mode;
   shown = 0;
   document.getElementById('posts').innerHTML = '';
+  computeFilteredPosts();
+  updateFeedHeading();
+  highlightActiveInRail();
   renderMore();
 }
+document.getElementById('feed-heading-clear').addEventListener('click', () => setFilterMode({ type: 'all' }));
+document.getElementById('vault-today-btn').addEventListener('click', () => {
+  setFilterMode({ type: 'onThisDay' });
+  document.getElementById('feed-heading').scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
+
+// ---------- home / scroll-to-top button ----------
+window.addEventListener('scroll', () => {
+  document.getElementById('home-btn').style.display = window.scrollY > 400 ? 'flex' : 'none';
+});
+document.getElementById('home-btn').addEventListener('click', () => {
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+});
 
 function renderMore() {
   const container = document.getElementById('posts');
@@ -269,8 +376,11 @@ function renderPost(p) {
     grid.className = 'post-photos ' + (p.photos.length === 1 ? 'n1' : p.photos.length === 2 ? 'n2' : p.photos.length === 3 ? 'n3' : 'n4plus');
     p.photos.forEach(blob => {
       const url = getPhotoUrl(blob);
-      if (blob.type.startsWith('video/')) {
+      if (isVideoFile(blob)) {
         const video = el(`<video src="${url}" controls playsinline preload="metadata"></video>`);
+        video.addEventListener('error', () => {
+          video.replaceWith(el(`<div class="media-error">⚠ This video couldn't be played in this browser.</div>`));
+        });
         grid.appendChild(video);
       } else {
         const img = el(`<img src="${url}" loading="lazy">`);
@@ -285,7 +395,7 @@ function renderPost(p) {
     revokePostPhotoUrls(p);
     node.remove();
     allPosts = allPosts.filter(x => x.id !== p.id);
-    rebuildYearFilter();
+    rebuildTimelineRail();
   });
   return node;
 }
@@ -298,7 +408,16 @@ function openLightbox(src) {
 
 // ---------- composer ----------
 document.getElementById('composer-photos').addEventListener('change', (e) => {
-  pendingPhotos = pendingPhotos.concat(Array.from(e.target.files || []));
+  const files = Array.from(e.target.files || []);
+  const big = files.find(f => f.size > 150 * 1024 * 1024);
+  if (big) {
+    alert(
+      `"${big.name}" is quite large (${Math.round(big.size / 1024 / 1024)}MB). It should still work, ` +
+      `but very large videos can take a while to save, or fail if your phone is low on free space. ` +
+      `If "Put it in the vault" seems to do nothing after adding this, try a shorter clip.`
+    );
+  }
+  pendingPhotos = pendingPhotos.concat(files);
   renderPhotoPreview();
   e.target.value = '';
 });
@@ -311,11 +430,16 @@ function renderPhotoPreview() {
   pendingPhotos.forEach((file, i) => {
     const url = URL.createObjectURL(file);
     pendingPhotoUrls.push(url);
-    const isVideo = file.type.startsWith('video/');
+    const isVideo = isVideoFile(file);
     const mediaTag = isVideo
       ? `<video src="${url}" muted playsinline preload="metadata"></video><span class="play-badge">▶</span>`
       : `<img src="${url}">`;
     const thumb = el(`<div class="thumb">${mediaTag}<button class="remove-btn">✕</button></div>`);
+    if (isVideo) {
+      thumb.querySelector('video').addEventListener('error', () => {
+        thumb.querySelector('video').replaceWith(el(`<span class="play-badge">🎬</span>`));
+      });
+    }
     thumb.querySelector('.remove-btn').addEventListener('click', () => {
       pendingPhotos.splice(i, 1);
       renderPhotoPreview();
@@ -354,10 +478,18 @@ document.getElementById('composer-submit').addEventListener('click', async () =>
     renderPhotoPreview();
     allPosts.push(post);
     allPosts.sort((a, b) => b.timestamp - a.timestamp);
-    rebuildYearFilter();
-    applyFilter();
+    rebuildTimelineRail();
+    setFilterMode(filterMode);
   } catch (e) {
-    showStorageError();
+    if (e && e.name === 'QuotaExceededError') {
+      alert(
+        "Couldn't save this post — you're out of storage space, most likely because of a large " +
+        "video. Try a shorter clip, delete some old posts to free up room, or download a backup " +
+        "(⋮ menu) and clear some space on your phone."
+      );
+    } else {
+      showStorageError();
+    }
   } finally {
     btn.disabled = false;
   }

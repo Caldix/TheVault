@@ -26,12 +26,7 @@
   <header class="topbar">
     <div class="topbar-inner">
       <span class="logo">memories</span>
-      <div class="topbar-controls">
-        <select id="year-filter" class="year-filter">
-          <option value="">All years</option>
-        </select>
-        <button id="menu-btn" class="menu-btn" title="Profile, backup, and more">⋮</button>
-      </div>
+      <button id="menu-btn" class="menu-btn" title="Profile, backup, and more">⋮</button>
     </div>
     <div id="menu-panel" class="menu-panel" style="display:none;">
       <button id="change-name-btn">👤 Change name</button>
@@ -43,6 +38,9 @@
       <button id="share-help-btn">📲 Send from WhatsApp — how?</button>
     </div>
   </header>
+
+  <!-- vertical scrubber for jumping through years -->
+  <aside id="timeline-rail" class="timeline-rail"></aside>
 
   <main class="feed">
     <!-- composer -->
@@ -66,10 +64,19 @@
       </div>
     </section>
 
+    <button id="vault-today-btn" class="vault-today-btn">📅 Open Vault: Today</button>
+
+    <div id="feed-heading" class="feed-heading" style="display:none;">
+      <span id="feed-heading-text"></span>
+      <button id="feed-heading-clear">✕</button>
+    </div>
+
     <section id="posts"></section>
     <button id="load-more" class="load-more" style="display:none;">See more</button>
     <p id="empty-msg" class="empty-msg" style="display:none;">No posts yet — write your first one above.</p>
   </main>
+
+  <button id="home-btn" class="home-btn" title="Back to top" style="display:none;">🏠</button>
 </div>
 
 <div id="lightbox-root"></div>
