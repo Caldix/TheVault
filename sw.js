@@ -22,7 +22,7 @@ function openDB() {
   });
 }
 
-const ASSET_CACHE = 'memories-assets-v1';
+const ASSET_CACHE = 'memories-assets-v2';
 const CORE_ASSETS = [
   './', './index.html', './style.css', './app.js',
   './manifest.json', './icon-192.png', './icon-512.png'
@@ -50,19 +50,17 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // cache-first for this app's own static files; everything else goes straight to network
+  // network-first for this app's own files, so updates always show up right away;
+  // only falls back to the cached copy if there's no network (e.g. offline)
   if (event.request.method === 'GET' && url.origin === location.origin) {
     event.respondWith(
-      caches.match(event.request).then(cached => {
-        if (cached) return cached;
-        return fetch(event.request).then(response => {
-          if (response.ok) {
-            const copy = response.clone();
-            caches.open(ASSET_CACHE).then(cache => cache.put(event.request, copy));
-          }
-          return response;
-        }).catch(() => cached);
-      })
+      fetch(event.request, { cache: 'reload' }).then(response => {
+        if (response.ok) {
+          const copy = response.clone();
+          caches.open(ASSET_CACHE).then(cache => cache.put(event.request, copy));
+        }
+        return response;
+      }).catch(() => caches.match(event.request))
     );
   }
 });

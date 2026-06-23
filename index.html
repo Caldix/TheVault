@@ -35,7 +35,6 @@
         ⬆ Load a backup file (adds to what's already here)
         <input type="file" id="import-file" accept=".json" hidden>
       </label>
-      <button id="share-help-btn">📲 Send from WhatsApp — how?</button>
     </div>
   </header>
 
@@ -80,21 +79,6 @@
 </div>
 
 <div id="lightbox-root"></div>
-
-<!-- explains how to enable WhatsApp -> site sharing on Android -->
-<div id="share-help" class="gate" style="display:none;">
-  <div class="gate-card wide">
-    <h2 class="serif">Sending from WhatsApp</h2>
-    <ol class="help-steps">
-      <li>On your phone, open this site's link, then your browser menu → <strong>Add to Home screen</strong> (this step is required — it only works once installed this way).</li>
-      <li>In WhatsApp, open the photo or message from your husband.</li>
-      <li>Tap <strong>Share</strong> (the arrow icon) → choose <strong>Memories</strong> from the list of apps.</li>
-      <li>It'll open this site with the photo/text already attached to a new post — just hit Post.</li>
-    </ol>
-    <p class="gate-sub">This only works on Android with Chrome. If "Memories" doesn't show up in the share list, make sure you completed step 1, then try again.</p>
-    <button id="share-help-close">Got it</button>
-  </div>
-</div>
 
 <script src="app.js"></script>
 </body>

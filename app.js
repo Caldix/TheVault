@@ -541,13 +541,4 @@ document.getElementById('import-file').addEventListener('change', async (e) => {
   e.target.value = '';
 });
 
-// ---------- WhatsApp share help modal ----------
-document.getElementById('share-help-btn').addEventListener('click', () => {
-  document.getElementById('menu-panel').style.display = 'none';
-  document.getElementById('share-help').style.display = 'flex';
-});
-document.getElementById('share-help-close').addEventListener('click', () => {
-  document.getElementById('share-help').style.display = 'none';
-});
-
 boot();
