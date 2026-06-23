@@ -269,9 +269,14 @@ function renderPost(p) {
     grid.className = 'post-photos ' + (p.photos.length === 1 ? 'n1' : p.photos.length === 2 ? 'n2' : p.photos.length === 3 ? 'n3' : 'n4plus');
     p.photos.forEach(blob => {
       const url = getPhotoUrl(blob);
-      const img = el(`<img src="${url}" loading="lazy">`);
-      img.addEventListener('click', () => openLightbox(url));
-      grid.appendChild(img);
+      if (blob.type.startsWith('video/')) {
+        const video = el(`<video src="${url}" controls playsinline preload="metadata"></video>`);
+        grid.appendChild(video);
+      } else {
+        const img = el(`<img src="${url}" loading="lazy">`);
+        img.addEventListener('click', () => openLightbox(url));
+        grid.appendChild(img);
+      }
     });
   }
   node.querySelector('.delete-btn').addEventListener('click', async () => {
@@ -306,7 +311,11 @@ function renderPhotoPreview() {
   pendingPhotos.forEach((file, i) => {
     const url = URL.createObjectURL(file);
     pendingPhotoUrls.push(url);
-    const thumb = el(`<div class="thumb"><img src="${url}"><button class="remove-btn">✕</button></div>`);
+    const isVideo = file.type.startsWith('video/');
+    const mediaTag = isVideo
+      ? `<video src="${url}" muted playsinline preload="metadata"></video><span class="play-badge">▶</span>`
+      : `<img src="${url}">`;
+    const thumb = el(`<div class="thumb">${mediaTag}<button class="remove-btn">✕</button></div>`);
     thumb.querySelector('.remove-btn').addEventListener('click', () => {
       pendingPhotos.splice(i, 1);
       renderPhotoPreview();
