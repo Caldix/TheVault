@@ -70,6 +70,22 @@ let filteredPosts = [];
 let shown = 0;
 let pendingPhotos = []; // array of File/Blob objects for the composer
 const PAGE_SIZE = 20;
+const photoUrlCache = new WeakMap(); // Blob -> object URL, avoids recreating URLs on every re-render
+
+function getPhotoUrl(blob) {
+  let url = photoUrlCache.get(blob);
+  if (!url) {
+    url = URL.createObjectURL(blob);
+    photoUrlCache.set(blob, url);
+  }
+  return url;
+}
+function revokePostPhotoUrls(post) {
+  for (const blob of (post.photos || [])) {
+    const url = photoUrlCache.get(blob);
+    if (url) { URL.revokeObjectURL(url); photoUrlCache.delete(blob); }
+  }
+}
 
 // ---------- helpers ----------
 function el(html) {
@@ -252,7 +268,7 @@ function renderPost(p) {
     const grid = node.querySelector('.post-photos');
     grid.className = 'post-photos ' + (p.photos.length === 1 ? 'n1' : p.photos.length === 2 ? 'n2' : p.photos.length === 3 ? 'n3' : 'n4plus');
     p.photos.forEach(blob => {
-      const url = URL.createObjectURL(blob);
+      const url = getPhotoUrl(blob);
       const img = el(`<img src="${url}" loading="lazy">`);
       img.addEventListener('click', () => openLightbox(url));
       grid.appendChild(img);
@@ -261,6 +277,7 @@ function renderPost(p) {
   node.querySelector('.delete-btn').addEventListener('click', async () => {
     if (!confirm('Delete this post?')) return;
     await dbDelete(p.id);
+    revokePostPhotoUrls(p);
     node.remove();
     allPosts = allPosts.filter(x => x.id !== p.id);
     rebuildYearFilter();
@@ -280,11 +297,15 @@ document.getElementById('composer-photos').addEventListener('change', (e) => {
   renderPhotoPreview();
   e.target.value = '';
 });
+let pendingPhotoUrls = []; // tracks preview URLs so they can be revoked on re-render
 function renderPhotoPreview() {
   const wrap = document.getElementById('photo-preview');
   wrap.innerHTML = '';
+  pendingPhotoUrls.forEach(u => URL.revokeObjectURL(u));
+  pendingPhotoUrls = [];
   pendingPhotos.forEach((file, i) => {
     const url = URL.createObjectURL(file);
+    pendingPhotoUrls.push(url);
     const thumb = el(`<div class="thumb"><img src="${url}"><button class="remove-btn">✕</button></div>`);
     thumb.querySelector('.remove-btn').addEventListener('click', () => {
       pendingPhotos.splice(i, 1);
@@ -322,7 +343,10 @@ document.getElementById('composer-submit').addEventListener('click', async () =>
     document.getElementById('composer-date').value = '';
     pendingPhotos = [];
     renderPhotoPreview();
-    await refreshFeed();
+    allPosts.push(post);
+    allPosts.sort((a, b) => b.timestamp - a.timestamp);
+    rebuildYearFilter();
+    applyFilter();
   } catch (e) {
     showStorageError();
   } finally {
