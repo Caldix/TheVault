@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Memories</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1877F2">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- shown once, the first time this browser opens the site -->
+<div id="profile-setup" class="gate" style="display:none;">
+  <div class="gate-card">
+    <div class="gate-logo">memories</div>
+    <p class="gate-sub">What's your name? It'll show on your posts.</p>
+    <input type="text" id="profile-name-input" placeholder="Your name">
+    <button id="profile-save-btn">Continue</button>
+  </div>
+</div>
+
+<div id="app" class="app" style="display:none;">
+  <header class="topbar">
+    <div class="topbar-inner">
+      <span class="logo">memories</span>
+      <div class="topbar-controls">
+        <select id="year-filter" class="year-filter">
+          <option value="">All years</option>
+        </select>
+        <button id="menu-btn" class="menu-btn" title="Profile, backup, and more">⋮</button>
+      </div>
+    </div>
+    <div id="menu-panel" class="menu-panel" style="display:none;">
+      <button id="change-name-btn">👤 Change name</button>
+      <button id="export-btn">⬇ Download a backup of everything here</button>
+      <label class="menu-item-btn">
+        ⬆ Load a backup file (adds to what's already here)
+        <input type="file" id="import-file" accept=".json" hidden>
+      </label>
+      <button id="share-help-btn">📲 Send from WhatsApp — how?</button>
+    </div>
+  </header>
+
+  <main class="feed">
+    <!-- composer -->
+    <section class="composer">
+      <div class="composer-row-top">
+        <div class="avatar" id="composer-avatar"></div>
+        <span id="composer-name-display" class="composer-name"></span>
+      </div>
+      <textarea id="composer-text" placeholder="What's on your mind?"></textarea>
+      <div id="photo-preview" class="photo-preview"></div>
+      <p id="composer-hint" class="composer-hint" style="display:none;">Write something or add a photo first.</p>
+      <div class="composer-row">
+        <label class="file-btn">
+          📷 Photo
+          <input type="file" id="composer-photos" accept="image/*" multiple hidden>
+        </label>
+        <label class="date-btn">
+          🕐 <input type="datetime-local" id="composer-date">
+        </label>
+        <button id="composer-submit">Post</button>
+      </div>
+    </section>
+
+    <section id="posts"></section>
+    <button id="load-more" class="load-more" style="display:none;">See more</button>
+    <p id="empty-msg" class="empty-msg" style="display:none;">No posts yet — write your first one above.</p>
+  </main>
+</div>
+
+<div id="lightbox-root"></div>
+
+<!-- explains how to enable WhatsApp -> site sharing on Android -->
+<div id="share-help" class="gate" style="display:none;">
+  <div class="gate-card wide">
+    <h2 class="serif">Sending from WhatsApp</h2>
+    <ol class="help-steps">
+      <li>On your phone, open this site's link, then your browser menu → <strong>Add to Home screen</strong> (this step is required — it only works once installed this way).</li>
+      <li>In WhatsApp, open the photo or message from your husband.</li>
+      <li>Tap <strong>Share</strong> (the arrow icon) → choose <strong>Memories</strong> from the list of apps.</li>
+      <li>It'll open this site with the photo/text already attached to a new post — just hit Post.</li>
+    </ol>
+    <p class="gate-sub">This only works on Android with Chrome. If "Memories" doesn't show up in the share list, make sure you completed step 1, then try again.</p>
+    <button id="share-help-close">Got it</button>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
