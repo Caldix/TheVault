@@ -67,6 +67,12 @@ button{cursor:pointer;font-family:inherit;}
 }
 .timeline-rail .tl-year.active{color:#fff;background:var(--primary);}
 .timeline-rail .tl-year:hover{background:var(--bg);}
+.timeline-rail .tl-month, .timeline-rail .tl-day{
+  font-size:0.78rem;font-weight:600;color:var(--text-dim);background:none;border:none;
+  padding:5px 2px;line-height:1.2;border-radius:5px;text-align:center;white-space:nowrap;
+}
+.timeline-rail .tl-month.active, .timeline-rail .tl-day.active{color:#fff;background:var(--primary);}
+.timeline-rail .tl-month:hover, .timeline-rail .tl-day:hover{background:var(--bg);}
 
 /* ---- home / scroll-to-top button ---- */
 .home-btn{

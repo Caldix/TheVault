@@ -208,7 +208,6 @@ async function refreshFeed() {
     showStorageError();
   }
   allPosts.sort((a, b) => b.timestamp - a.timestamp);
-  rebuildTimelineRail();
   setFilterMode(filterMode);
 }
 
@@ -222,38 +221,110 @@ function showStorageError() {
 }
 
 // ---------- filtering ----------
-let filterMode = { type: 'all' }; // { type:'all' } | { type:'year', year } | { type:'onThisDay' }
+const MONTH_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+// filterMode: { type:'all' } | { type:'year', year } | { type:'month', year, month } |
+//             { type:'day', year, month, day } | { type:'onThisDay' }
+let filterMode = { type: 'all' };
+
+// rail navigation is a separate, shallower concept from filterMode: it's just "what level
+// of the drill-down am I looking at right now" (years / months-of-a-year / days-of-a-month)
+let railLevel = 'years';
+let railYear = null;
+let railMonth = null;
+
+function yearsWithPosts() {
+  return [...new Set(allPosts.map(p => new Date(p.timestamp).getFullYear()))].sort((a, b) => b - a);
+}
+function monthsWithPosts(year) {
+  return [...new Set(
+    allPosts.filter(p => new Date(p.timestamp).getFullYear() === year).map(p => new Date(p.timestamp).getMonth())
+  )].sort((a, b) => a - b);
+}
+function daysWithPosts(year, month) {
+  return [...new Set(
+    allPosts.filter(p => { const d = new Date(p.timestamp); return d.getFullYear() === year && d.getMonth() === month; })
+      .map(p => new Date(p.timestamp).getDate())
+  )].sort((a, b) => a - b);
+}
 
 function rebuildTimelineRail() {
   const rail = document.getElementById('timeline-rail');
   rail.innerHTML = '';
-  const allBtn = el(`<button class="tl-all">All</button>`);
-  allBtn.addEventListener('click', () => setFilterMode({ type: 'all' }));
-  rail.appendChild(allBtn);
-  const years = [...new Set(allPosts.map(p => new Date(p.timestamp).getFullYear()))].sort((a, b) => b - a);
-  years.forEach(y => {
-    const shortYear = String(y).slice(-2);
-    const btn = el(`<button class="tl-year" data-year="${y}">${shortYear}</button>`);
-    btn.title = String(y);
-    btn.addEventListener('click', () => setFilterMode({ type: 'year', year: y }));
-    rail.appendChild(btn);
-  });
+
+  if (railLevel === 'months') {
+    const allBtn = el(`<button class="tl-all">All</button>`);
+    allBtn.addEventListener('click', () => {
+      railLevel = 'years'; railYear = null;
+      setFilterMode({ type: 'all' });
+    });
+    rail.appendChild(allBtn);
+    monthsWithPosts(railYear).forEach(m => {
+      const btn = el(`<button class="tl-month" data-month="${m}">${MONTH_SHORT[m]}</button>`);
+      btn.addEventListener('click', () => {
+        railLevel = 'days'; railMonth = m;
+        setFilterMode({ type: 'month', year: railYear, month: m });
+      });
+      rail.appendChild(btn);
+    });
+  } else if (railLevel === 'days') {
+    const allBtn = el(`<button class="tl-all">All</button>`);
+    allBtn.addEventListener('click', () => {
+      railLevel = 'months'; railMonth = null;
+      setFilterMode({ type: 'year', year: railYear });
+    });
+    rail.appendChild(allBtn);
+    daysWithPosts(railYear, railMonth).forEach(d => {
+      const btn = el(`<button class="tl-day" data-day="${d}">${d}</button>`);
+      btn.addEventListener('click', () => {
+        setFilterMode({ type: 'day', year: railYear, month: railMonth, day: d });
+      });
+      rail.appendChild(btn);
+    });
+  } else {
+    const allBtn = el(`<button class="tl-all">All</button>`);
+    allBtn.addEventListener('click', () => setFilterMode({ type: 'all' }));
+    rail.appendChild(allBtn);
+    yearsWithPosts().forEach(y => {
+      const btn = el(`<button class="tl-year" data-year="${y}">${String(y).slice(-2)}</button>`);
+      btn.title = String(y);
+      btn.addEventListener('click', () => {
+        railLevel = 'months'; railYear = y;
+        setFilterMode({ type: 'year', year: y });
+      });
+      rail.appendChild(btn);
+    });
+  }
   highlightActiveInRail();
 }
+
 function highlightActiveInRail() {
-  document.querySelectorAll('.timeline-rail .tl-year, .timeline-rail .tl-all').forEach(b => b.classList.remove('active'));
-  if (filterMode.type === 'year') {
-    const btn = document.querySelector(`.timeline-rail .tl-year[data-year="${filterMode.year}"]`);
-    if (btn) btn.classList.add('active');
-  } else if (filterMode.type === 'all') {
-    const btn = document.querySelector('.timeline-rail .tl-all');
-    if (btn) btn.classList.add('active');
+  document.querySelectorAll('.timeline-rail button').forEach(b => b.classList.remove('active'));
+  if (railLevel === 'months') {
+    if (filterMode.type === 'year') document.querySelector('.timeline-rail .tl-all')?.classList.add('active');
+    else if (filterMode.type === 'month') document.querySelector(`.timeline-rail .tl-month[data-month="${filterMode.month}"]`)?.classList.add('active');
+  } else if (railLevel === 'days') {
+    if (filterMode.type === 'month') document.querySelector('.timeline-rail .tl-all')?.classList.add('active');
+    else if (filterMode.type === 'day') document.querySelector(`.timeline-rail .tl-day[data-day="${filterMode.day}"]`)?.classList.add('active');
+  } else {
+    if (filterMode.type === 'all') document.querySelector('.timeline-rail .tl-all')?.classList.add('active');
   }
 }
 
 function computeFilteredPosts() {
   if (filterMode.type === 'year') {
     filteredPosts = allPosts.filter(p => new Date(p.timestamp).getFullYear() === filterMode.year);
+  } else if (filterMode.type === 'month') {
+    filteredPosts = allPosts.filter(p => {
+      const d = new Date(p.timestamp);
+      return d.getFullYear() === filterMode.year && d.getMonth() === filterMode.month;
+    });
+  } else if (filterMode.type === 'day') {
+    filteredPosts = allPosts.filter(p => {
+      const d = new Date(p.timestamp);
+      return d.getFullYear() === filterMode.year && d.getMonth() === filterMode.month && d.getDate() === filterMode.day;
+    });
   } else if (filterMode.type === 'onThisDay') {
     const now = new Date();
     filteredPosts = allPosts.filter(p => {
@@ -271,6 +342,12 @@ function updateFeedHeading() {
   if (filterMode.type === 'year') {
     text.textContent = String(filterMode.year);
     heading.style.display = 'flex';
+  } else if (filterMode.type === 'month') {
+    text.textContent = `${MONTH_NAMES[filterMode.month]} ${filterMode.year}`;
+    heading.style.display = 'flex';
+  } else if (filterMode.type === 'day') {
+    text.textContent = `${MONTH_NAMES[filterMode.month]} ${filterMode.day}, ${filterMode.year}`;
+    heading.style.display = 'flex';
   } else if (filterMode.type === 'onThisDay') {
     const dateStr = new Date().toLocaleDateString(undefined, { month: 'long', day: 'numeric' });
     text.textContent = `From the vault: ${dateStr}, across the years`;
@@ -286,29 +363,33 @@ function setFilterMode(mode) {
   document.getElementById('posts').innerHTML = '';
   computeFilteredPosts();
   updateFeedHeading();
-  highlightActiveInRail();
+  rebuildTimelineRail();
   if (mode.type === 'year') {
-    renderGroupedByMonth();
+    renderGrouped(p => MONTH_NAMES[new Date(p.timestamp).getMonth()]);
+  } else if (mode.type === 'month') {
+    renderGrouped(p => String(new Date(p.timestamp).getDate()));
   } else {
     renderMore();
   }
 }
-const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-function renderGroupedByMonth() {
+function renderGrouped(labelFor) {
   const container = document.getElementById('posts');
-  let lastMonth = null;
+  let lastLabel = null;
   filteredPosts.forEach(p => {
-    const m = new Date(p.timestamp).getMonth();
-    if (m !== lastMonth) {
-      container.appendChild(el(`<div class="month-header">${MONTH_NAMES[m]}</div>`));
-      lastMonth = m;
+    const label = labelFor(p);
+    if (label !== lastLabel) {
+      container.appendChild(el(`<div class="month-header">${label}</div>`));
+      lastLabel = label;
     }
     container.appendChild(renderPost(p));
   });
   document.getElementById('load-more').style.display = 'none';
   document.getElementById('empty-msg').style.display = filteredPosts.length === 0 ? 'block' : 'none';
 }
-document.getElementById('feed-heading-clear').addEventListener('click', () => setFilterMode({ type: 'all' }));
+document.getElementById('feed-heading-clear').addEventListener('click', () => {
+  railLevel = 'years'; railYear = null; railMonth = null;
+  setFilterMode({ type: 'all' });
+});
 document.getElementById('vault-today-btn').addEventListener('click', () => {
   setFilterMode({ type: 'onThisDay' });
   document.getElementById('feed-heading').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -471,7 +552,6 @@ document.getElementById('composer-submit').addEventListener('click', async () =>
     renderPhotoPreview();
     allPosts.push(post);
     allPosts.sort((a, b) => b.timestamp - a.timestamp);
-    rebuildTimelineRail();
     setFilterMode(filterMode);
   } catch (e) {
     if (e && e.name === 'QuotaExceededError') {
