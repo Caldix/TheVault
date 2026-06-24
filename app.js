@@ -185,7 +185,7 @@ async function pickUpSharedContent() {
     const items = await shareGetAllAndClear();
     if (!items.length) return;
     const latest = items.sort((a, b) => b.createdAt - a.createdAt)[0];
-    if (latest.text) document.getElementById('composer-text').value = latest.text;
+    if (latest.text) document.getElementById('composer-text').textContent = latest.text;
     if (latest.files && latest.files.length) {
       pendingPhotos = pendingPhotos.concat(latest.files);
       renderPhotoPreview();
@@ -227,12 +227,14 @@ let filterMode = { type: 'all' }; // { type:'all' } | { type:'year', year } | { 
 function rebuildTimelineRail() {
   const rail = document.getElementById('timeline-rail');
   rail.innerHTML = '';
-  const allBtn = el(`<button class="tl-all">All years</button>`);
+  const allBtn = el(`<button class="tl-all">All</button>`);
   allBtn.addEventListener('click', () => setFilterMode({ type: 'all' }));
   rail.appendChild(allBtn);
   const years = [...new Set(allPosts.map(p => new Date(p.timestamp).getFullYear()))].sort((a, b) => b - a);
   years.forEach(y => {
-    const btn = el(`<button class="tl-year" data-year="${y}">${y}</button>`);
+    const shortYear = String(y).slice(-2);
+    const btn = el(`<button class="tl-year" data-year="${y}">${shortYear}</button>`);
+    btn.title = String(y);
     btn.addEventListener('click', () => setFilterMode({ type: 'year', year: y }));
     rail.appendChild(btn);
   });
@@ -285,7 +287,26 @@ function setFilterMode(mode) {
   computeFilteredPosts();
   updateFeedHeading();
   highlightActiveInRail();
-  renderMore();
+  if (mode.type === 'year') {
+    renderGroupedByMonth();
+  } else {
+    renderMore();
+  }
+}
+const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+function renderGroupedByMonth() {
+  const container = document.getElementById('posts');
+  let lastMonth = null;
+  filteredPosts.forEach(p => {
+    const m = new Date(p.timestamp).getMonth();
+    if (m !== lastMonth) {
+      container.appendChild(el(`<div class="month-header">${MONTH_NAMES[m]}</div>`));
+      lastMonth = m;
+    }
+    container.appendChild(renderPost(p));
+  });
+  document.getElementById('load-more').style.display = 'none';
+  document.getElementById('empty-msg').style.display = filteredPosts.length === 0 ? 'block' : 'none';
 }
 document.getElementById('feed-heading-clear').addEventListener('click', () => setFilterMode({ type: 'all' }));
 document.getElementById('vault-today-btn').addEventListener('click', () => {
@@ -328,7 +349,11 @@ function renderPost(p) {
       <div class="post-actions"><button class="delete-btn">Delete</button></div>
     </article>
   `);
-  if (p.text) node.querySelector('.post-text').textContent = p.text;
+  if (p.text) {
+    const textEl = node.querySelector('.post-text');
+    if (p.richText) textEl.innerHTML = p.text;
+    else textEl.textContent = p.text;
+  }
   if (p.photos && p.photos.length) {
     const grid = node.querySelector('.post-photos');
     grid.className = 'post-photos ' + (p.photos.length === 1 ? 'n1' : p.photos.length === 2 ? 'n2' : p.photos.length === 3 ? 'n3' : 'n4plus');
@@ -365,6 +390,13 @@ function openLightbox(src) {
 }
 
 // ---------- composer ----------
+document.querySelectorAll('.fmt-btn').forEach(btn => {
+  btn.addEventListener('mousedown', (e) => {
+    e.preventDefault(); // keep the text selection inside the composer instead of losing it to the button
+    document.execCommand(btn.dataset.cmd);
+    document.getElementById('composer-text').focus();
+  });
+});
 document.getElementById('composer-photos').addEventListener('change', (e) => {
   const files = Array.from(e.target.files || []);
   const big = files.find(f => f.size > 150 * 1024 * 1024);
@@ -407,11 +439,13 @@ function renderPhotoPreview() {
 }
 
 document.getElementById('composer-submit').addEventListener('click', async () => {
-  const text = document.getElementById('composer-text').value.trim();
+  const textEl = document.getElementById('composer-text');
+  const plainText = textEl.textContent.trim();
+  const htmlText = textEl.innerHTML.trim();
   const dateVal = document.getElementById('composer-date').value;
   const hint = document.getElementById('composer-hint');
 
-  if (!text && pendingPhotos.length === 0) {
+  if (!plainText && pendingPhotos.length === 0) {
     hint.style.display = 'block';
     setTimeout(() => { hint.style.display = 'none'; }, 2500);
     return;
@@ -425,12 +459,13 @@ document.getElementById('composer-submit').addEventListener('click', async () =>
     const post = {
       id: makeId(),
       author,
-      text,
+      text: plainText ? htmlText : '',
+      richText: true,
       timestamp: dateVal ? new Date(dateVal).getTime() : Date.now(),
       photos: pendingPhotos.slice(),
     };
     await dbPut(post);
-    document.getElementById('composer-text').value = '';
+    textEl.innerHTML = '';
     document.getElementById('composer-date').value = '';
     pendingPhotos = [];
     renderPhotoPreview();
@@ -467,7 +502,7 @@ document.getElementById('export-btn').addEventListener('click', async () => {
     for (const blob of (p.photos || [])) {
       photoDataUrls.push(await blobToDataUrl(blob));
     }
-    exportable.push({ id: p.id, author: p.author, text: p.text, timestamp: p.timestamp, photos: photoDataUrls });
+    exportable.push({ id: p.id, author: p.author, text: p.text, richText: p.richText, timestamp: p.timestamp, photos: photoDataUrls });
   }
   const blob = new Blob([JSON.stringify(exportable)], { type: 'application/json' });
   const a = document.createElement('a');
@@ -488,7 +523,7 @@ document.getElementById('import-file').addEventListener('change', async (e) => {
       for (const dataUrl of (item.photos || [])) {
         photos.push(await dataUrlToBlob(dataUrl));
       }
-      await dbPut({ id: item.id || makeId(), author: item.author, text: item.text, timestamp: item.timestamp, photos });
+      await dbPut({ id: item.id || makeId(), author: item.author, text: item.text, richText: item.richText, timestamp: item.timestamp, photos });
     }
     document.getElementById('menu-panel').style.display = 'none';
     await refreshFeed();

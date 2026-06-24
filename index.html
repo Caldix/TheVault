@@ -26,7 +26,10 @@
   <header class="topbar">
     <div class="topbar-inner">
       <span class="logo">memories</span>
-      <button id="menu-btn" class="menu-btn" title="Profile, backup, and more">⋮</button>
+      <div class="topbar-right">
+        <button id="vault-today-btn" class="vault-btn-small">📅 Open Vault</button>
+        <button id="menu-btn" class="menu-btn" title="Profile, backup, and more">⋮</button>
+      </div>
     </div>
     <div id="menu-panel" class="menu-panel" style="display:none;">
       <button id="change-name-btn">👤 Change name</button>
@@ -38,7 +41,7 @@
     </div>
   </header>
 
-  <!-- vertical scrubber for jumping through years -->
+  <!-- vertical list for jumping through years -->
   <aside id="timeline-rail" class="timeline-rail"></aside>
 
   <main class="feed">
@@ -48,7 +51,13 @@
         <div class="avatar" id="composer-avatar"></div>
         <span id="composer-name-display" class="composer-name"></span>
       </div>
-      <textarea id="composer-text" placeholder="What's on your mind?"></textarea>
+      <div class="composer-toolbar">
+        <button type="button" class="fmt-btn" data-cmd="bold" title="Bold"><b>B</b></button>
+        <button type="button" class="fmt-btn" data-cmd="italic" title="Italic"><i>I</i></button>
+        <button type="button" class="fmt-btn" data-cmd="underline" title="Underline"><u>U</u></button>
+        <button type="button" class="fmt-btn" data-cmd="insertUnorderedList" title="Bullet list">≡</button>
+      </div>
+      <div id="composer-text" class="composer-textbox" contenteditable="true" data-placeholder="What's on your mind?"></div>
       <div id="photo-preview" class="photo-preview"></div>
       <p id="composer-hint" class="composer-hint" style="display:none;">Write something or add a photo first.</p>
       <div class="composer-row">
@@ -62,8 +71,6 @@
         <button id="composer-submit">Put it in the vault</button>
       </div>
     </section>
-
-    <button id="vault-today-btn" class="vault-today-btn">📅 Open Vault</button>
 
     <div id="feed-heading" class="feed-heading" style="display:none;">
       <span id="feed-heading-text"></span>
