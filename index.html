@@ -28,6 +28,7 @@
       <span class="logo">memories</span>
       <div class="topbar-right">
         <button id="vault-today-btn" class="vault-btn-small">📅 Open Vault</button>
+        <button id="search-btn" class="menu-btn" title="Search">🔍</button>
         <button id="menu-btn" class="menu-btn" title="Profile, backup, and more">⋮</button>
       </div>
     </div>
@@ -38,6 +39,10 @@
         ⬆ Load a backup file (adds to what's already here)
         <input type="file" id="import-file" accept=".json" hidden>
       </label>
+    </div>
+    <div id="search-bar" class="search-bar" style="display:none;">
+      <input type="text" id="search-input" placeholder="Search posts...">
+      <button id="search-close">✕</button>
     </div>
   </header>
 

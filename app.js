@@ -312,6 +312,13 @@ function highlightActiveInRail() {
   }
 }
 
+const _stripDiv = document.createElement('div');
+function plainTextOf(post) {
+  if (!post.text) return '';
+  if (post.richText) { _stripDiv.innerHTML = post.text; return _stripDiv.textContent || ''; }
+  return post.text;
+}
+
 function computeFilteredPosts() {
   if (filterMode.type === 'year') {
     filteredPosts = allPosts.filter(p => new Date(p.timestamp).getFullYear() === filterMode.year);
@@ -330,6 +337,12 @@ function computeFilteredPosts() {
     filteredPosts = allPosts.filter(p => {
       const d = new Date(p.timestamp);
       return d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
+    });
+  } else if (filterMode.type === 'search') {
+    const words = filterMode.query.toLowerCase().split(/\s+/).filter(Boolean);
+    filteredPosts = allPosts.filter(p => {
+      const haystack = ((p.author || '') + ' ' + plainTextOf(p)).toLowerCase();
+      return words.every(w => haystack.includes(w));
     });
   } else {
     filteredPosts = allPosts;
@@ -351,6 +364,9 @@ function updateFeedHeading() {
   } else if (filterMode.type === 'onThisDay') {
     const dateStr = new Date().toLocaleDateString(undefined, { month: 'long', day: 'numeric' });
     text.textContent = `From the vault: ${dateStr}, across the years`;
+    heading.style.display = 'flex';
+  } else if (filterMode.type === 'search') {
+    text.textContent = `Search: "${filterMode.query}"`;
     heading.style.display = 'flex';
   } else {
     heading.style.display = 'none';
@@ -388,11 +404,32 @@ function renderGrouped(labelFor) {
 }
 document.getElementById('feed-heading-clear').addEventListener('click', () => {
   railLevel = 'years'; railYear = null; railMonth = null;
+  document.getElementById('search-input').value = '';
+  document.getElementById('search-bar').style.display = 'none';
   setFilterMode({ type: 'all' });
 });
 document.getElementById('vault-today-btn').addEventListener('click', () => {
   setFilterMode({ type: 'onThisDay' });
   document.getElementById('feed-heading').scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
+
+// ---------- search ----------
+document.getElementById('search-btn').addEventListener('click', () => {
+  document.getElementById('menu-panel').style.display = 'none';
+  const bar = document.getElementById('search-bar');
+  const isOpen = bar.style.display !== 'none';
+  bar.style.display = isOpen ? 'none' : 'flex';
+  if (!isOpen) document.getElementById('search-input').focus();
+});
+document.getElementById('search-close').addEventListener('click', () => {
+  document.getElementById('search-input').value = '';
+  document.getElementById('search-bar').style.display = 'none';
+  if (filterMode.type === 'search') setFilterMode({ type: 'all' });
+});
+document.getElementById('search-input').addEventListener('input', (e) => {
+  const q = e.target.value.trim();
+  if (!q) { setFilterMode({ type: 'all' }); return; }
+  setFilterMode({ type: 'search', query: q });
 });
 
 // ---------- home / scroll-to-top button ----------
