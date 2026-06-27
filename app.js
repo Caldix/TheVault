@@ -69,6 +69,7 @@ let allPosts = [];
 let filteredPosts = [];
 let shown = 0;
 let pendingPhotos = []; // array of File/Blob objects for the composer
+let editingPost = null; // the post currently being edited, or null when composing a new post
 const PAGE_SIZE = 20;
 const photoUrlCache = new WeakMap(); // Blob -> object URL, avoids recreating URLs on every re-render
 
@@ -103,6 +104,11 @@ function formatDate(ts) {
 }
 function makeId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+}
+function toDatetimeLocalValue(ts) {
+  const d = new Date(ts);
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 function isVideoFile(file) {
   if (file && file.type) return file.type.startsWith('video/');
@@ -380,6 +386,7 @@ function setFilterMode(mode) {
   computeFilteredPosts();
   updateFeedHeading();
   rebuildTimelineRail();
+  updateHomeButtonVisibility();
   if (mode.type === 'year') {
     renderGrouped(p => MONTH_NAMES[new Date(p.timestamp).getMonth()]);
   } else if (mode.type === 'month') {
@@ -433,10 +440,16 @@ document.getElementById('search-input').addEventListener('input', (e) => {
 });
 
 // ---------- home / scroll-to-top button ----------
-window.addEventListener('scroll', () => {
-  document.getElementById('home-btn').style.display = window.scrollY > 400 ? 'flex' : 'none';
-});
+function updateHomeButtonVisibility() {
+  const shouldShow = window.scrollY > 400 || filterMode.type !== 'all';
+  document.getElementById('home-btn').style.display = shouldShow ? 'flex' : 'none';
+}
+window.addEventListener('scroll', updateHomeButtonVisibility);
 document.getElementById('home-btn').addEventListener('click', () => {
+  railLevel = 'years'; railYear = null; railMonth = null;
+  document.getElementById('search-input').value = '';
+  document.getElementById('search-bar').style.display = 'none';
+  setFilterMode({ type: 'all' });
   window.scrollTo({ top: 0, behavior: 'smooth' });
 });
 
@@ -464,7 +477,10 @@ function renderPost(p) {
       </div>
       ${p.text ? `<div class="post-text"></div>` : ''}
       ${p.photos && p.photos.length ? `<div class="post-photos"></div>` : ''}
-      <div class="post-actions"><button class="delete-btn">Delete</button></div>
+      <div class="post-actions">
+        <button class="edit-btn">Edit</button>
+        <button class="delete-btn">Delete</button>
+      </div>
     </article>
   `);
   if (p.text) {
@@ -490,6 +506,7 @@ function renderPost(p) {
       }
     });
   }
+  node.querySelector('.edit-btn').addEventListener('click', () => startEdit(p));
   node.querySelector('.delete-btn').addEventListener('click', async () => {
     if (!confirm('Delete this post?')) return;
     await dbDelete(p.id);
@@ -500,6 +517,31 @@ function renderPost(p) {
   });
   return node;
 }
+
+function startEdit(post) {
+  editingPost = post;
+  const textEl = document.getElementById('composer-text');
+  if (post.richText) textEl.innerHTML = post.text || '';
+  else textEl.textContent = post.text || '';
+  pendingPhotos = (post.photos || []).slice();
+  renderPhotoPreview();
+  document.getElementById('composer-date').value = toDatetimeLocalValue(post.timestamp);
+  document.getElementById('composer-submit').textContent = 'Save changes';
+  document.getElementById('composer-cancel-edit').style.display = 'inline-block';
+  document.querySelector('.composer').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  textEl.focus();
+}
+
+function cancelEdit() {
+  editingPost = null;
+  document.getElementById('composer-text').innerHTML = '';
+  document.getElementById('composer-date').value = '';
+  pendingPhotos = [];
+  renderPhotoPreview();
+  document.getElementById('composer-submit').textContent = 'Put it in the vault';
+  document.getElementById('composer-cancel-edit').style.display = 'none';
+}
+document.getElementById('composer-cancel-edit').addEventListener('click', cancelEdit);
 
 function openLightbox(src) {
   const box = el(`<div class="lightbox"><img src="${src}"></div>`);
@@ -570,16 +612,17 @@ document.getElementById('composer-submit').addEventListener('click', async () =>
   }
   hint.style.display = 'none';
 
-  const author = getProfileName() || 'Memories';
+  const isEditing = !!editingPost;
+  const author = isEditing ? editingPost.author : (getProfileName() || 'Memories');
   const btn = document.getElementById('composer-submit');
   btn.disabled = true;
   try {
     const post = {
-      id: makeId(),
+      id: isEditing ? editingPost.id : makeId(),
       author,
       text: plainText ? htmlText : '',
       richText: true,
-      timestamp: dateVal ? new Date(dateVal).getTime() : Date.now(),
+      timestamp: dateVal ? new Date(dateVal).getTime() : (isEditing ? editingPost.timestamp : Date.now()),
       photos: pendingPhotos.slice(),
     };
     await dbPut(post);
@@ -587,7 +630,14 @@ document.getElementById('composer-submit').addEventListener('click', async () =>
     document.getElementById('composer-date').value = '';
     pendingPhotos = [];
     renderPhotoPreview();
-    allPosts.push(post);
+    if (isEditing) {
+      allPosts = allPosts.map(x => x.id === post.id ? post : x);
+      editingPost = null;
+      btn.textContent = 'Put it in the vault';
+      document.getElementById('composer-cancel-edit').style.display = 'none';
+    } else {
+      allPosts.push(post);
+    }
     allPosts.sort((a, b) => b.timestamp - a.timestamp);
     setFilterMode(filterMode);
   } catch (e) {
